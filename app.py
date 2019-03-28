@@ -17,7 +17,7 @@ with warnings.catch_warnings():
 
 class Formats:
 
-        __HEADER_FORMAT = (
+        HEADER_FORMAT = (
             '{:<6s}  '  # n
             '{:>2s}  '  # sat_id
             '{:>7s}  {:>7s}  '  # lat, long
@@ -32,7 +32,22 @@ class Formats:
             '{}'  # date for Point
             )
 
-        HEADER = __HEADER_FORMAT.format(
+        ROW_FORMAT  = (
+            '#{:<5d}  '  # n
+            '{:2d}  '  # sat_id
+            '{:7.2f}  {:7.2f}  '  # lat, long
+            '{:6.1f}  {:6.1f}  '  # ti, te
+            '{:12.5e}  '  # ne
+            '{:10.3e}  '  # PO+
+            '{:3d}  {:3d}  '  # RPA, IDM
+            '{}    '  # date for DMSP
+            '{:8.2f}    '  # mlt
+            '{:8.2f}    '  # mlt from IRI
+            '{:8.3f}    '  # UT for Point
+            '{}'  # date for Point
+            )
+
+        HEADER = HEADER_FORMAT.format(
             'i',
             'id',
             'lat', 'lon',
@@ -293,22 +308,7 @@ class RunThread(QThread):
 
             if self.isActive:
 
-                format = (
-                    '#{:<5d}  '  # n
-                    '{:2d}  '  # sat_id
-                    '{:7.2f}  {:7.2f}  '  # lat, long
-                    '{:6.1f}  {:6.1f}  '  # ti, te
-                    '{:12.5e}  '  # ne
-                    '{:10.3e}  '  # PO+
-                    '{:3d}  {:3d}  '  # RPA, IDM
-                    '{}    '  # date for DMSP
-                    '{:8.2f}    '  # mlt
-                    '{:8.2f}    '  # mlt from IRI
-                    '{:8.3f}    '  # UT for Point
-                    '{}'  # date for Point
-                    )
-                
-                out_str = format.format(
+                out_str = Formats.ROW_FORMAT.format(
                     n+1,
                     d['sat_id'],
                     d['lat'], d['long'],
