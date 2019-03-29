@@ -73,9 +73,14 @@ class MainWnd(QMainWindow):
     def __init__(self):
         super().__init__()
         uic.loadUi('./ui/MainWnd.ui', self)
+
+        self.program_name = 'DMSP_Pass version 1.0'
+        self.setWindowTitle(self.program_name)
+
         self.showMaximized()
 
         self.runButton.clicked.connect(self.run)
+        self.aboutButton.clicked.connect(self.show_about)
         self.terminateButton.clicked.connect(self.terminate)
         self.chooseInputFileButton.clicked.connect(self.choose_file)
         self.saveConfigButton.clicked.connect(self.save_config_file)
@@ -234,6 +239,19 @@ class MainWnd(QMainWindow):
         msg.show()
         msg.exec_()
 
+    def show_about(self):
+        about = (
+            '\n\n'
+            '© 2019 Oleksandr Bogomaz'
+            '\n'
+            'o.v.bogomaz1985@gmail.com')
+
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText(self.program_name + about)
+        msg.setWindowTitle("About")
+        msg.show()
+        msg.exec_()
 
 class RunThread(QThread):
 
