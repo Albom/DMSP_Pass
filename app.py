@@ -14,6 +14,8 @@ with warnings.catch_warnings():
     warnings.filterwarnings('ignore', category=FutureWarning)
     import h5py
 
+from filelist import FileList
+
 
 class Formats:
 
@@ -81,7 +83,7 @@ class MainWnd(QMainWindow):
         self.logListWidget.setFont(font)
 
         self.show()
-        self.input_file_name = None
+        self.directory_name = None
 
         self.configs = {
             'proxy_host': self.proxyHostEdit,
@@ -98,6 +100,9 @@ class MainWnd(QMainWindow):
     def save_results_file(self):
         filename, _ = QFileDialog.getSaveFileName()
         if filename:
+            ext = '.txt'
+            if not filename.endswith(ext):
+                filename += ext
             try:
                 with open(filename, 'w') as file:
                     file.write(Formats.HEADER + '\n')
@@ -164,10 +169,12 @@ class MainWnd(QMainWindow):
         self.chooseInputFileButton.setEnabled(True)
 
     def choose_file(self):
-        filename, _ = QFileDialog.getOpenFileName()
-        if filename:
-            self.input_file_name = filename
-            self.inputFileNameEdit.setText(filename.split('/')[-1])
+        directory_name = str(QFileDialog.getExistingDirectory(self))
+        if directory_name:
+            self.directory_name = directory_name
+            text = directory_name.split('/')[-1] if directory_name[-2] != ':' else directory_name[:-1] 
+            self.inputFileNameEdit.setText(text)
+            self.inputFileNameEdit.setToolTip(directory_name)
 
     @pyqtSlot(bool)
     def finished(self, status):
@@ -183,8 +190,8 @@ class MainWnd(QMainWindow):
     def read_configuration(self):
         result = dict()
         success = True
-        result['filename'] = self.input_file_name
-        if not result['filename']:
+        result['directory_name'] = self.directory_name
+        if not result['directory_name']:
             success = False
 
         try:
@@ -239,91 +246,95 @@ class RunThread(QThread):
         if self.isActive:
             time = datetime.now().replace(microsecond=0)
             self.log.emit('{}. Processing started.'.format(time))
-            filename = self.configuration['filename']
-            self.log.emit('Reading \'{}\'...'.format(filename))
-            data = self.read_input_file(filename)
-            if data is None:
-                self.finished.emit(False)
-                return
+            directory_name = self.configuration['directory_name']
 
-        if self.isActive:
-            data = self.filter(data, self.configuration)
-            num = len(data)
-            if num > 1:
-                self.log.emit('{} passes were found.'.format(num))
-            elif num == 1:
-                self.log.emit('1 pass was found.')
-            else:
-                self.log.emit('No passes were found.')
-                self.finished.emit(False)
-                return
-
-        if self.isActive:
-            proxy_host = self.configuration['proxy_host']
-            proxy_port = self.configuration['proxy_port']
-            iri = IriModelAccess(
-                {'proxy_host': proxy_host, 'proxy_port': proxy_port})
-
-        if self.isActive:
-
-            self.log.emit(Formats.HEADER)
-
-        for n, d in enumerate(data):
-            mlt = None
-            date = d['date']
+        for filename in FileList.get(directory_name):
 
             if self.isActive:
-                mlt = float(
-                    iri.get_data(date, d['lat'], d['long'], 0, False)[0])
-
-            if mlt is None:
-                self.finished.emit(False)
-                return
-
-            if self.isActive:
-                times = [float(x)
-                         for x in iri.get_data(
-                             date,
-                             self.configuration['point_lat'],
-                             self.configuration['point_long'], 1)]
-
-                delta = float('inf')
-                k = 0
-                for i, v in enumerate(times):
-                    if abs(v-mlt) < delta:
-                        k = i
-                        delta = abs(v-mlt)
-                kt = k*0.025
+                self.log.emit(
+                    'Reading \'{}\' from \'{}\'...'.format(
+                        filename, directory_name))
+                data = self.read_input_file(directory_name + '/' + filename)
+                if data is None or not data:
+                    self.log.emit('No data available in file.')
+                    continue
 
             if self.isActive:
-                date_out = datetime(date.year, date.month, date.day)
-                date_out += timedelta(seconds=int(kt*3600.0))
-
-                delta = date_out - date
-                if abs(delta.total_seconds()) > 12*60*60:
-                    if delta.total_seconds() > 0:
-                        date_out += timedelta(days=-1)
-                    else:
-                        date_out += timedelta(days=1)
-
-            if self.isActive:
-
-                out_str = Formats.ROW_FORMAT.format(
-                    n+1,
-                    d['sat_id'],
-                    d['lat'], d['long'],
-                    d['ti'], d['te'],
-                    d['ne'],
-                    d['po'],
-                    d['rpa'], d['idm'],
-                    str(date.replace(microsecond=0)).replace(' ', 'T'),
-                    d['mlt'],
-                    mlt,
-                    kt,
-                    str(date_out).replace(' ', 'T'))
+                data = self.filter(data, self.configuration)
+                num = len(data)
+                if num > 1:
+                    self.log.emit('{} passes were found.'.format(num))
+                elif num == 1:
+                    self.log.emit('1 pass was found.')
+                else:
+                    self.log.emit('No passes were found.')
+                    continue
 
             if self.isActive:
-                self.log.emit(out_str)
+                proxy_host = self.configuration['proxy_host']
+                proxy_port = self.configuration['proxy_port']
+                iri = IriModelAccess(
+                    {'proxy_host': proxy_host, 'proxy_port': proxy_port})
+
+            if self.isActive:
+                self.log.emit(Formats.HEADER)
+
+            for n, d in enumerate(data):
+                mlt = None
+                date = d['date']
+
+                if self.isActive:
+                    mlt = float(
+                        iri.get_data(date, d['lat'], d['long'], 0, False)[0])
+
+                if mlt is None:
+                    self.finished.emit(False)
+                    return
+
+                if self.isActive:
+                    times = [float(x)
+                             for x in iri.get_data(
+                                 date,
+                                 self.configuration['point_lat'],
+                                 self.configuration['point_long'], 1)]
+
+                    delta = float('inf')
+                    k = 0
+                    for i, v in enumerate(times):
+                        if abs(v-mlt) < delta:
+                            k = i
+                            delta = abs(v-mlt)
+                    kt = k*0.025
+
+                if self.isActive:
+                    date_out = datetime(date.year, date.month, date.day)
+                    date_out += timedelta(seconds=int(kt*3600.0))
+
+                    delta = date_out - date
+                    if abs(delta.total_seconds()) > 12*60*60:
+                        if delta.total_seconds() > 0:
+                            date_out += timedelta(days=-1)
+                        else:
+                            date_out += timedelta(days=1)
+
+                if self.isActive:
+
+                    out_str = Formats.ROW_FORMAT.format(
+                        n+1,
+                        d['sat_id'],
+                        d['lat'], d['long'],
+                        d['ti'], d['te'],
+                        d['ne'],
+                        d['po'],
+                        d['rpa'], d['idm'],
+                        str(date.replace(microsecond=0)).replace(' ', 'T'),
+                        d['mlt'],
+                        mlt,
+                        kt,
+                        str(date_out).replace(' ', 'T'))
+
+                if self.isActive:
+                    self.log.emit(out_str)
 
         self.finished.emit(True)
 
@@ -350,15 +361,20 @@ class RunThread(QThread):
             lats = main_table[:, 'gdlat']
             lons = main_table[:, 'glon']
 
-            tis = main_table[:, 'ti'] if 'ti' in columns else [-1]*nrows
-            tes = main_table[:, 'te'] if 'te' in columns else [-1]*nrows
-            nes = main_table[:, 'ne'] if 'ne' in columns else [-1]*nrows
+            tis = list(main_table[:, 'ti']) if 'ti' in columns else [-1]*nrows
+            tes = list(main_table[:, 'te']) if 'te' in columns else [-1]*nrows
+            nes = list(main_table[:, 'ne']) if 'ne' in columns else [-1]*nrows
 
-            sat_ids = main_table[:, 'sat_id'] if 'sat_id' in columns else [-1]*nrows
-            mlts = main_table[:, 'mlt'] if 'mlt' in columns else [-1]*nrows
-            pos = main_table[:, 'po+'] if 'po+' in columns else [-1]*nrows
-            rpas = main_table[:, 'rpa_flag_ut'] if 'rpa_flag_ut' in columns else [-1]*nrows
-            idms = main_table[:, 'idm_flag_ut'] if 'idm_flag_ut' in columns else [-1]*nrows
+            sat_ids = list(main_table[:, 'sat_id']) if 'sat_id' in columns else [-1]*nrows
+            mlts = list(main_table[:, 'mlt']) if 'mlt' in columns else [-1]*nrows
+            pos = list(main_table[:, 'po+']) if 'po+' in columns else [-1]*nrows
+            rpas = list(main_table[:, 'rpa_flag_ut']) if 'rpa_flag_ut' in columns else [-1]*nrows
+            idms = list(main_table[:, 'idm_flag_ut']) if 'idm_flag_ut' in columns else [-1]*nrows
+
+            for x in [tis, tes, nes, sat_ids, mlts, pos, rpas, idms]:
+                for i, e in enumerate(x):
+                    if str(e) == 'nan':
+                        x[i] = -1
 
             dates = [datetime(
                 years[i],
@@ -591,7 +607,7 @@ class IriModelAccess:
                     proxies=self.proxies,
                     headers=headers)
             except requests.exceptions.RequestException:
-                if timeout > 10:
+                if timeout > 20:
                     return None
                 timeout += 1
                 print('Request timeout: ' + str(timeout) + ' s')
@@ -606,7 +622,7 @@ class IriModelAccess:
             end_pos = r.text.index('</pre>')
             lines = r.text[start_pos: end_pos].strip()
         except ValueError:
-            if n > 10:
+            if n > 20:
                 return None
             else:
                 n += 1

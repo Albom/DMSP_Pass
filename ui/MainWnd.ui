@@ -465,7 +465,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>Filename</string>
+              <string>Directory</string>
              </property>
             </widget>
            </item>
