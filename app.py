@@ -23,6 +23,7 @@ class Formats:
             '{:<6s}  '  # n
             '{:>2s}  '  # sat_id
             '{:>7s}  {:>7s}  '  # lat, long
+            '{:>7s}  '  # alt
             '{:>6s}  {:>6s}  '  # ti, te
             '{:>12s}  '  # ne
             '{:>10s}  '  # PO+
@@ -38,6 +39,7 @@ class Formats:
             '#{:<5d}  '  # n
             '{:2d}  '  # sat_id
             '{:7.2f}  {:7.2f}  '  # lat, long
+            '{:>7.2f}  '  # alt
             '{:6.1f}  {:6.1f}  '  # ti, te
             '{:12.5e}  '  # ne
             '{:10.3e}  '  # PO+
@@ -53,6 +55,7 @@ class Formats:
             'i',
             'id',
             'lat', 'lon',
+            'alt',
             'ti', 'te',
             'ne',
             'po+',
@@ -323,6 +326,7 @@ class RunThread(QThread):
                         n+1,
                         d['sat_id'],
                         d['lat'], d['long'],
+                        d['alt'],
                         d['ti'], d['te'],
                         d['ne'],
                         d['po'],
@@ -361,6 +365,8 @@ class RunThread(QThread):
             lats = main_table[:, 'gdlat']
             lons = main_table[:, 'glon']
 
+            alts = main_table[:, 'gdalt']
+
             tis = list(main_table[:, 'ti']) if 'ti' in columns else [-1]*nrows
             tes = list(main_table[:, 'te']) if 'te' in columns else [-1]*nrows
             nes = list(main_table[:, 'ne']) if 'ne' in columns else [-1]*nrows
@@ -391,6 +397,7 @@ class RunThread(QThread):
                              'ne': nes[i],
                              'lat': lats[i],
                              'long': lons[i],
+                             'alt': alts[i],
                              'sat_id': sat_ids[i],
                              'mlt': mlts[i],
                              'po': pos[i],
@@ -504,6 +511,7 @@ class RunThread(QThread):
                             ) if idm_pos != -1 else -1,
                          'lat': float(values[lat_pos]),
                          'long': float(values[long_pos]),
+                         'alt': alt,
                          })
         return data
 
