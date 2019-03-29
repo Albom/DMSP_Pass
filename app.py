@@ -29,6 +29,7 @@ class Formats:
             '{:>10s}  '  # PO+
             '{:>3s}  {:>3s}  '  # RPA, IDM
             '{}    '  # date for DMSP
+            '{:>8s}    '  # ut for DMSP
             '{:>8s}    '  # mlt
             '{:>8s}    '  # mlt from IRI
             '{:>8s}    '  # UT for Point
@@ -45,6 +46,7 @@ class Formats:
             '{:10.3e}  '  # PO+
             '{:3d}  {:3d}  '  # RPA, IDM
             '{}    '  # date for DMSP
+            '{:8.2f}    '  # UT for DMSP
             '{:8.2f}    '  # mlt
             '{:8.2f}    '  # mlt from IRI
             '{:8.3f}    '  # UT for Point
@@ -61,6 +63,7 @@ class Formats:
             'po+',
             'rpa', 'idm',
             '          date_dmsp',
+            'ut_dmsp',
             'mlt_dmsp',
             'mlt_iri',
             'ut_point',
@@ -350,6 +353,7 @@ class RunThread(QThread):
                         d['po'],
                         d['rpa'], d['idm'],
                         str(date.replace(microsecond=0)).replace(' ', 'T'),
+                        date.hour + date.minute / 60.0 + date.second/3600.0,
                         d['mlt'],
                         mlt,
                         kt,
@@ -521,12 +525,8 @@ class RunThread(QThread):
                          'ne': ne,
                          'mlt': mlt,
                          'po': po,
-                         'rpa': int(
-                            values[rpa_pos] if values[rpa_pos] != 'nan' else -1
-                            ) if rpa_pos != -1 else -1,
-                         'idm': int(
-                            values[idm_pos] if values[idm_pos] != 'nan' else -1
-                            ) if idm_pos != -1 else -1,
+                         'rpa': int(rpa),
+                         'idm': int(idm),
                          'lat': float(values[lat_pos]),
                          'long': float(values[long_pos]),
                          'alt': alt,
