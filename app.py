@@ -9,12 +9,11 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot, Qt
 from PyQt5.QtWidgets import QApplication, \
     QMainWindow, QFileDialog, QMessageBox
+from filelist import FileList
 import warnings
 with warnings.catch_warnings():
     warnings.filterwarnings('ignore', category=FutureWarning)
     import h5py
-
-from filelist import FileList
 
 
 class Formats:
@@ -36,7 +35,7 @@ class Formats:
             '{}'  # date for Point
             )
 
-        ROW_FORMAT  = (
+        ROW_FORMAT = (
             '#{:<5d}  '  # n
             '{:2d}  '  # sat_id
             '{:7.2f}  {:7.2f}  '  # lat, long
@@ -308,19 +307,27 @@ class RunThread(QThread):
                 date = d['date']
 
                 if self.isActive:
-                    mlt = float(
-                        iri.get_data(date, d['lat'], d['long'], 0, False)[0])
+                    try:
+                        mlt = float(
+                            iri.get_data(date, d['lat'], d['long'], 0, False)[0])
+                    except ValueError:
+                        self.finished.emit(False)
+                        return
 
-                if mlt is None:
-                    self.finished.emit(False)
-                    return
+                    if mlt is None:
+                        self.finished.emit(False)
+                        return
 
                 if self.isActive:
-                    times = [float(x)
-                             for x in iri.get_data(
-                                 date,
-                                 self.configuration['point_lat'],
-                                 self.configuration['point_long'], 1)]
+                    iri_result = iri.get_data(
+                                    date,
+                                    self.configuration['point_lat'],
+                                    self.configuration['point_long'], 1)
+                    try:
+                        times = [float(x) for x in iri_result]
+                    except ValueError as err:
+                        print(err, '\n', iri_result)
+                        return
 
                     delta = float('inf')
                     k = 0
@@ -452,8 +459,6 @@ class RunThread(QThread):
             hour_pos = header.index('HOUR')
             min_pos = header.index('MIN')
             sec_pos = header.index('SEC')
-            lat_pos = header.index('GDLAT')
-            long_pos = header.index('GLON')
         except ValueError:
             return None
 
@@ -464,6 +469,8 @@ class RunThread(QThread):
                 pos = -1
             return pos
 
+        lat_pos = pos_normalize('GDLAT')
+        long_pos = pos_normalize('GLON')
         sat_id_pos = pos_normalize('SAT_ID')
         mlt_pos = pos_normalize('MLT')
         ti_pos = pos_normalize('TI')
@@ -502,7 +509,7 @@ class RunThread(QThread):
                 try:
                     result = float(
                         values[pos] if values[pos] != 'nan' else -1
-                        ) if pos != -1 else -1
+                        ) if pos > 0 else -1
                 except ValueError:
                     result = -1
                 return result
@@ -519,7 +526,7 @@ class RunThread(QThread):
             data.append({'date': date,
                          'sat_id': int(
                             values[sat_id_pos]
-                            ) if sat_id_pos != -1 else -1,
+                            ) if sat_id_pos > 0 else -1,
                          'ti': ti,
                          'te': te,
                          'ne': ne,
