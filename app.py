@@ -354,6 +354,12 @@ class RunThread(QThread):
             tes = main_table[:, 'te'] if 'te' in columns else [-1]*nrows
             nes = main_table[:, 'ne'] if 'ne' in columns else [-1]*nrows
 
+            sat_ids = main_table[:, 'sat_id'] if 'sat_id' in columns else [-1]*nrows
+            mlts = main_table[:, 'mlt'] if 'mlt' in columns else [-1]*nrows
+            pos = main_table[:, 'po+'] if 'po+' in columns else [-1]*nrows
+            rpas = main_table[:, 'rpa_flag_ut'] if 'rpa_flag_ut' in columns else [-1]*nrows
+            idms = main_table[:, 'idm_flag_ut'] if 'idm_flag_ut' in columns else [-1]*nrows
+
             dates = [datetime(
                 years[i],
                 months[i],
@@ -366,8 +372,14 @@ class RunThread(QThread):
                 data.append({'date': dates[i],
                              'ti': tis[i],
                              'te': tes[i],
+                             'ne': nes[i],
                              'lat': lats[i],
                              'long': lons[i],
+                             'sat_id': sat_ids[i],
+                             'mlt': mlts[i],
+                             'po': pos[i],
+                             'rpa': rpas[i],
+                             'idm': idms[i],
                              })
         return data
 
