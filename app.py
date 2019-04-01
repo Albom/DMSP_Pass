@@ -4,6 +4,7 @@ from time import sleep
 from datetime import datetime, timedelta
 import requests
 import gzip
+from random import randint
 from PyQt5 import uic
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot, Qt
@@ -182,7 +183,7 @@ class MainWnd(QMainWindow):
         directory_name = str(QFileDialog.getExistingDirectory(self))
         if directory_name:
             self.directory_name = directory_name
-            text = directory_name.split('/')[-1] if directory_name[-2] != ':' else directory_name[:-1] 
+            text = directory_name.split('/')[-1] if directory_name[-2] != ':' else directory_name[:-1]
             self.inputFileNameEdit.setText(text)
             self.inputFileNameEdit.setToolTip(directory_name)
 
@@ -255,6 +256,7 @@ class MainWnd(QMainWindow):
         msg.show()
         msg.exec_()
 
+
 class RunThread(QThread):
 
     finished = pyqtSignal(bool)
@@ -271,7 +273,9 @@ class RunThread(QThread):
             self.log.emit('{}. Processing started.'.format(time))
             directory_name = self.configuration['directory_name']
 
-        for filename in FileList.get(directory_name):
+        files = FileList.get(directory_name) if self.isActive else []
+
+        for filename in files:
 
             if self.isActive:
                 self.log.emit(
@@ -308,8 +312,10 @@ class RunThread(QThread):
 
                 if self.isActive:
                     try:
+                        print('Req. 1')
                         mlt = float(
-                            iri.get_data(date, d['lat'], d['long'], 0, False)[0])
+                            iri.get_data(
+                                date, d['lat'], d['long'], 3, False)[0])
                     except ValueError:
                         self.finished.emit(False)
                         return
@@ -319,14 +325,15 @@ class RunThread(QThread):
                         return
 
                 if self.isActive:
-                    iri_result = iri.get_data(
+                    print('Req. 2')
+                    iri_result = iri.get_data_cached(
                                     date,
                                     self.configuration['point_lat'],
-                                    self.configuration['point_long'], 1)
+                                    self.configuration['point_long'], 3)
                     try:
                         times = [float(x) for x in iri_result]
-                    except ValueError as err:
-                        print(err, '\n', iri_result)
+                    except ValueError:
+                        self.finished.emit(False)
                         return
 
                     delta = float('inf')
@@ -586,6 +593,40 @@ class IriModelAccess:
         self.url = ('https://ccmc.gsfc.nasa.gov'
                     '/cgi-bin/modelweb/models/vitmo_model.cgi')
 
+        self.cache = dict()
+
+    @staticmethod
+    def __calc_hash(date, latitude, longitude, all_day):
+        return '{:04d}-{:02d}-{:02d}_{}_{}_{}'.format(
+            date.year, date.month, date.day, latitude, longitude, all_day)
+
+    def __load_cache(self, param_hash):
+        return self.cache[param_hash] if param_hash in self.cache else None
+
+    def __save_cache(self, param_hash, data):
+        keys = self.cache.keys()
+        n = len(keys)
+        if n > 200:
+            p = randint(0, n-1)
+            del self.cache[keys[p]]
+        self.cache[param_hash] = data
+
+    def get_data_cached(self, date, latitude, longitude, n, all_day=True):
+
+        longitude = float(longitude)
+        if longitude < 0:
+            longitude += 360.0
+
+        param_hash = IriModelAccess.__calc_hash(
+            date, latitude, longitude, all_day)
+        data = self.__load_cache(param_hash)
+        if data is None:
+            data = self.get_data(date, latitude, longitude, n, all_day)
+            self.__save_cache(param_hash, data)
+        else:
+            print('Data (hash: {}) are loaded from cache.'.format(param_hash))
+        return data
+
     def get_data(self, date, latitude, longitude, n, all_day=True):
 
         day = str(date.day)
@@ -633,6 +674,7 @@ class IriModelAccess:
 
         def try_request(timeout):
             result = ''
+            sleep(timeout)
             try:
                 result = requests.post(
                     self.url,
@@ -640,28 +682,28 @@ class IriModelAccess:
                     proxies=self.proxies,
                     headers=headers)
             except requests.exceptions.RequestException:
-                if timeout > 20:
+                if timeout > 60:
                     return None
-                timeout += 1
-                print('Request timeout: ' + str(timeout) + ' s')
-                sleep(timeout)
+                timeout *= 2
+                print('Error. New request timeout: ' + str(timeout) + ' s')
                 result = try_request(timeout)
             return result
 
-        r = try_request(0)
+        r = try_request(3)
 
         try:
             start_pos = r.text.index('     1') + 7
             end_pos = r.text.index('</pre>')
             lines = r.text[start_pos: end_pos].strip()
         except ValueError:
-            if n > 20:
+            if n > 60:
                 return None
             else:
-                n += 1
+                n *= 2
                 print('Bad data. Retrying after ' + str(n) + ' s')
                 sleep(n)
-                return self.get_data(date, latitude, longitude, n, all_day)
+                return self.get_data_cached(
+                    date, latitude, longitude, n, all_day)
 
         values = lines.split('\n')
         return values
