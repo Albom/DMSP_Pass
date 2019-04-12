@@ -77,7 +77,7 @@ class MainWnd(QMainWindow):
         super().__init__()
         uic.loadUi('./ui/MainWnd.ui', self)
 
-        self.program_name = 'DMSP_Pass version 1.0'
+        self.program_name = 'DMSP_Pass version 1.1'
         self.setWindowTitle(self.program_name)
 
         self.showMaximized()
@@ -483,6 +483,8 @@ class RunThread(QThread):
         ti_pos = pos_normalize('TI')
         te_pos = pos_normalize('TE')
         ne_pos = pos_normalize('NE')
+        if ne_pos == -1:
+            ne_pos = pos_normalize('NI')
         alt_pos = pos_normalize('GDALT')
         po_pos = pos_normalize('PO+')
         rpa_pos = pos_normalize('RPA_FLAG_')
