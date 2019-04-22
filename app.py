@@ -1,7 +1,7 @@
 import sys
 from math import modf
 from time import sleep
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import requests
 import gzip
 from random import randint
@@ -10,12 +10,12 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot, Qt
 from PyQt5.QtWidgets import QApplication, \
     QMainWindow, QFileDialog, QMessageBox
-from filelist import FileList
+from cdflib import CDF, cdfepoch
 import warnings
 with warnings.catch_warnings():
     warnings.filterwarnings('ignore', category=FutureWarning)
     import h5py
-
+from filelist import FileList
 
 class Formats:
 
@@ -77,7 +77,7 @@ class MainWnd(QMainWindow):
         super().__init__()
         uic.loadUi('./ui/MainWnd.ui', self)
 
-        self.program_name = 'DMSP_Pass version 1.1'
+        self.program_name = 'DMSP_Pass version 1.2'
         self.setWindowTitle(self.program_name)
 
         self.showMaximized()
@@ -550,11 +550,47 @@ class RunThread(QThread):
                          })
         return data
 
+    def __read_cdf_file(self, filename):
+
+        data = []
+
+        cdf = CDF(filename)
+
+        timestamps, latitudes, longitudes, heights, densities = (
+            cdf.varget('Timestamp'),
+            cdf.varget('Latitude'),
+            cdf.varget('Longitude'),
+            cdf.varget('Height'),
+            cdf.varget('Density'))
+
+        dates = [datetime.fromtimestamp(t, timezone.utc).replace(tzinfo=None)
+                 for t in cdfepoch.unixtime(timestamps)]
+
+        nrows = len(dates)
+        for i in range(nrows):
+                data.append({'date': dates[i],
+                             'ti': -1,
+                             'te': -1,
+                             'ne': densities[i],
+                             'lat': latitudes[i],
+                             'long': longitudes[i],
+                             'alt': heights[i],
+                             'sat_id': -1,
+                             'mlt': -1,
+                             'po': -1,
+                             'rpa': -1,
+                             'idm': -1,
+                             })
+        return data
+
+
     def read_input_file(self, filename):
         if filename.endswith('.hdf5'):
             return self.__read_hdf5_file(filename)
-        else:
+        elif filename.endswith('.txt') or filename.endswith('.txt.gz'):
             return self.__read_txt_file(filename)
+        elif filename.endswith('.cdf'):
+            return self.__read_cdf_file(filename)
 
     def filter(self, data, configuration):
 
