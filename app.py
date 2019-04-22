@@ -405,7 +405,8 @@ class RunThread(QThread):
 
             tis = list(main_table[:, 'ti']) if 'ti' in columns else [-1]*nrows
             tes = list(main_table[:, 'te']) if 'te' in columns else [-1]*nrows
-            nes = list(main_table[:, 'ne']) if 'ne' in columns else [-1]*nrows
+            nes = list(main_table[:, 'ne']) if 'ne' in columns else (
+                list(main_table[:, 'ni']) if 'ni' in columns else [-1]*nrows)
 
             sat_ids = list(main_table[:, 'sat_id']) if 'sat_id' in columns else [-1]*nrows
             mlts = list(main_table[:, 'mlt']) if 'mlt' in columns else [-1]*nrows
