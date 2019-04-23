@@ -1,4 +1,5 @@
 import sys
+from os import path
 from math import modf
 from time import sleep
 from datetime import datetime, timedelta, timezone
@@ -38,7 +39,7 @@ class Formats:
 
         ROW_FORMAT = (
             '#{:<5d}  '  # n
-            '{:2d}  '  # sat_id
+            '{:>2s}  '  # sat_id
             '{:7.2f}  {:7.2f}  '  # lat, long
             '{:>7.2f}  '  # alt
             '{:6.1f}  {:6.1f}  '  # ti, te
@@ -408,7 +409,8 @@ class RunThread(QThread):
             nes = list(main_table[:, 'ne']) if 'ne' in columns else (
                 list(main_table[:, 'ni']) if 'ni' in columns else [-1]*nrows)
 
-            sat_ids = list(main_table[:, 'sat_id']) if 'sat_id' in columns else [-1]*nrows
+            sat_ids = list(main_table[:, 'sat_id']) if 'sat_id' in columns else (
+                [15]*nrows if path.basename(filename).startswith('dms_ut_') else [-1]*nrows)
             mlts = list(main_table[:, 'mlt']) if 'mlt' in columns else [-1]*nrows
             pos = list(main_table[:, 'po+']) if 'po+' in columns else [-1]*nrows
             rpas = list(main_table[:, 'rpa_flag_ut']) if 'rpa_flag_ut' in columns else [-1]*nrows
@@ -435,7 +437,7 @@ class RunThread(QThread):
                              'lat': lats[i],
                              'long': lons[i],
                              'alt': alts[i],
-                             'sat_id': sat_ids[i],
+                             'sat_id': str(sat_ids[i]),
                              'mlt': mlts[i],
                              'po': pos[i],
                              'rpa': rpas[i],
@@ -534,9 +536,9 @@ class RunThread(QThread):
             idm = param_normalize(idm_pos)
 
             data.append({'date': date,
-                         'sat_id': int(
+                         'sat_id': str(int(
                             values[sat_id_pos]
-                            ) if sat_id_pos > 0 else -1,
+                            ) if sat_id_pos > 0 else (15 if path.basename(filename).startswith('dms_ut_') else -1)),
                          'ti': ti,
                          'te': te,
                          'ne': ne,
@@ -566,6 +568,9 @@ class RunThread(QThread):
         dates = [datetime.fromtimestamp(t, timezone.utc).replace(tzinfo=None)
                  for t in cdfepoch.unixtime(timestamps)]
 
+        basename = path.basename(filename)
+        sat_id = basename[11:12] if basename.startswith('SW_EXTD_EFI') else -1
+
         nrows = len(dates)
         for i in range(nrows):
                 data.append({'date': dates[i],
@@ -575,7 +580,7 @@ class RunThread(QThread):
                              'lat': latitudes[i],
                              'long': longitudes[i],
                              'alt': heights[i],
-                             'sat_id': -1,
+                             'sat_id': sat_id,
                              'mlt': -1,
                              'po': -1,
                              'rpa': -1,
