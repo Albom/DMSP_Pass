@@ -558,12 +558,13 @@ class RunThread(QThread):
 
         cdf = CDF(filename)
 
-        timestamps, latitudes, longitudes, heights, densities = (
+        timestamps, latitudes, longitudes, heights, densities, temperatures = (
             cdf.varget('Timestamp'),
             cdf.varget('Latitude'),
             cdf.varget('Longitude'),
             cdf.varget('Height'),
-            cdf.varget('Density'))
+            cdf.varget('Density') if 'Density' in cdf.cdf_info()['zVariables'] else None,
+            cdf.varget('T_elec') if 'T_elec' in cdf.cdf_info()['zVariables'] else None)
 
         dates = [datetime.fromtimestamp(t, timezone.utc).replace(tzinfo=None)
                  for t in cdfepoch.unixtime(timestamps)]
@@ -575,8 +576,8 @@ class RunThread(QThread):
         for i in range(nrows):
                 data.append({'date': dates[i],
                              'ti': -1,
-                             'te': -1,
-                             'ne': densities[i],
+                             'te': temperatures[i] if temperatures is not None else -1,
+                             'ne': densities[i] if densities is not None else -1,
                              'lat': latitudes[i],
                              'long': longitudes[i],
                              'alt': heights[i],
