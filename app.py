@@ -564,7 +564,7 @@ class RunThread(QThread):
             cdf.varget('Longitude'),
             cdf.varget('Height'),
             cdf.varget('Density') if 'Density' in cdf.cdf_info()['zVariables'] else None,
-            cdf.varget('T_elec') if 'T_elec' in cdf.cdf_info()['zVariables'] else None)
+            cdf.varget('Te_hgn') if 'Te_hgn' in cdf.cdf_info()['zVariables'] else None)
 
         dates = [datetime.fromtimestamp(t, timezone.utc).replace(tzinfo=None)
                  for t in cdfepoch.unixtime(timestamps)]
