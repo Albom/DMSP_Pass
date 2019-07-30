@@ -78,7 +78,7 @@ class MainWnd(QMainWindow):
         super().__init__()
         uic.loadUi('./ui/MainWnd.ui', self)
 
-        self.program_name = 'DMSP_Pass version 1.2'
+        self.program_name = 'Sat_Pass version 1.3'
         self.setWindowTitle(self.program_name)
 
         self.showMaximized()
@@ -90,7 +90,7 @@ class MainWnd(QMainWindow):
         self.saveConfigButton.clicked.connect(self.save_config_file)
         self.saveResultsButton.clicked.connect(self.save_results_file)
 
-        font = QFont("Monospace")
+        font = QFont('Monospace')
         font.setStyleHint(QFont.TypeWriter)
         self.logListWidget.setFont(font)
 
@@ -239,7 +239,7 @@ class MainWnd(QMainWindow):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Critical)
         msg.setText(message)
-        msg.setWindowTitle("Error")
+        msg.setWindowTitle('Error')
         msg.show()
         msg.exec_()
 
@@ -253,7 +253,7 @@ class MainWnd(QMainWindow):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Information)
         msg.setText(self.program_name + about)
-        msg.setWindowTitle("About")
+        msg.setWindowTitle('About')
         msg.show()
         msg.exec_()
 
