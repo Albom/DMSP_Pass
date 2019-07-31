@@ -18,6 +18,7 @@ with warnings.catch_warnings():
     import h5py
 from filelist import FileList
 
+
 class Formats:
 
         HEADER_FORMAT = (
@@ -63,10 +64,10 @@ class Formats:
             'ne',
             'po+',
             'rpa', 'idm',
-            '          date_dmsp',
-            'ut_dmsp',
-            'mlt_dmsp',
-            'mlt_iri',
+            '           date_sat',
+            '  ut_sat',
+            ' mlt_sat',
+            ' mlt_iri',
             'ut_point',
             '         date_point'
             )
@@ -78,7 +79,7 @@ class MainWnd(QMainWindow):
         super().__init__()
         uic.loadUi('./ui/MainWnd.ui', self)
 
-        self.program_name = 'Sat_Pass version 1.4'
+        self.program_name = 'Sat_Pass version 1.5'
         self.setWindowTitle(self.program_name)
 
         self.showMaximized()
@@ -186,9 +187,7 @@ class MainWnd(QMainWindow):
         directory_name = str(QFileDialog.getExistingDirectory(self))
         if directory_name:
             self.directory_name = directory_name
-            text = directory_name.split('/')[-1] if directory_name[-2] != ':' else directory_name[:-1]
-            self.inputFileNameEdit.setText(text)
-            self.inputFileNameEdit.setToolTip(directory_name)
+            self.inputFileNameEdit.setText(directory_name)
 
     @pyqtSlot(bool)
     def finished(self, status):
@@ -559,15 +558,17 @@ class RunThread(QThread):
         data = []
 
         te_name = wnd.electronTemperatureComboBox.currentText()
+        ne_name = 'Density'
         cdf = CDF(filename)
 
+        z_var = 'zVariables'
         timestamps, latitudes, longitudes, heights, densities, temperatures = (
             cdf.varget('Timestamp'),
             cdf.varget('Latitude'),
             cdf.varget('Longitude'),
             cdf.varget('Height'),
-            cdf.varget('Density') if 'Density' in cdf.cdf_info()['zVariables'] else None,
-            cdf.varget(te_name) if te_name in cdf.cdf_info()['zVariables'] else None)
+            cdf.varget(ne_name) if ne_name in cdf.cdf_info()[z_var] else None,
+            cdf.varget(te_name) if te_name in cdf.cdf_info()[z_var] else None)
 
         dates = [datetime.fromtimestamp(t, timezone.utc).replace(tzinfo=None)
                  for t in cdfepoch.unixtime(timestamps)]
@@ -591,7 +592,6 @@ class RunThread(QThread):
                              'idm': -1,
                              })
         return data
-
 
     def read_input_file(self, filename):
         if filename.endswith('.hdf5'):
