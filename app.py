@@ -78,7 +78,7 @@ class MainWnd(QMainWindow):
         super().__init__()
         uic.loadUi('./ui/MainWnd.ui', self)
 
-        self.program_name = 'Sat_Pass version 1.3'
+        self.program_name = 'Sat_Pass version 1.4'
         self.setWindowTitle(self.program_name)
 
         self.showMaximized()
@@ -166,6 +166,7 @@ class MainWnd(QMainWindow):
             self.aboutButton.setEnabled(False)
             self.saveConfigButton.setEnabled(False)
             self.chooseInputFileButton.setEnabled(False)
+            self.electronTemperatureComboBox.setEnabled(False)
             self.terminateButton.setEnabled(True)
             self.thread = RunThread(configuration)
             self.thread.finished.connect(self.finished)
@@ -179,6 +180,7 @@ class MainWnd(QMainWindow):
         self.aboutButton.setEnabled(True)
         self.saveConfigButton.setEnabled(True)
         self.chooseInputFileButton.setEnabled(True)
+        self.electronTemperatureComboBox.setEnabled(True)
 
     def choose_file(self):
         directory_name = str(QFileDialog.getExistingDirectory(self))
@@ -556,6 +558,7 @@ class RunThread(QThread):
 
         data = []
 
+        te_name = wnd.electronTemperatureComboBox.currentText()
         cdf = CDF(filename)
 
         timestamps, latitudes, longitudes, heights, densities, temperatures = (
@@ -564,7 +567,7 @@ class RunThread(QThread):
             cdf.varget('Longitude'),
             cdf.varget('Height'),
             cdf.varget('Density') if 'Density' in cdf.cdf_info()['zVariables'] else None,
-            cdf.varget('Te_hgn') if 'Te_hgn' in cdf.cdf_info()['zVariables'] else None)
+            cdf.varget(te_name) if te_name in cdf.cdf_info()['zVariables'] else None)
 
         dates = [datetime.fromtimestamp(t, timezone.utc).replace(tzinfo=None)
                  for t in cdfepoch.unixtime(timestamps)]
