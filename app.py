@@ -22,37 +22,37 @@ from filelist import FileList
 class Formats:
 
         HEADER_FORMAT = (
-            '{:<6s}  '  # n
-            '{:>2s}  '  # sat_id
-            '{:>7s}  {:>7s}  '  # lat, long
-            '{:>7s}  '  # alt
-            '{:>6s}  {:>6s}  '  # ti, te
-            '{:>12s}  '  # ne
-            '{:>10s}  '  # PO+
-            '{:>3s}  {:>3s}  '  # RPA, IDM
-            '{}    '  # date for DMSP
-            '{:>8s}    '  # ut for DMSP
-            '{:>8s}    '  # mlt
-            '{:>8s}    '  # mlt from IRI
-            '{:>8s}    '  # UT for Point
-            '{}'  # date for Point
+            '{:<6s}'          # n
+            '{:>4s}'          # sat_id
+            '{:>8s}{:>8s}'    # lat, long
+            '{:>8s}'          # alt
+            '{:>8s}{:>8s}'    # ti, te
+            '{:>14s}'         # ne
+            '{:>12s}'         # PO+
+            '{:>6s}{:>6s}'    # RPA, IDM
+            '{:>20s}'         # date for satellite
+            '{:>10s}'         # ut for satellite
+            '{:>10s}'         # mlt
+            '{:>10s}'         # mlt from IRI
+            '{:>10s}'         # UT for Point
+            '{:>20s}'         # date for Point
             )
 
         ROW_FORMAT = (
-            '#{:<5d}  '  # n
-            '{:>2s}  '  # sat_id
-            '{:7.2f}  {:7.2f}  '  # lat, long
-            '{:>7.2f}  '  # alt
-            '{:6.1f}  {:6.1f}  '  # ti, te
-            '{:12.5e}  '  # ne
-            '{:10.3e}  '  # PO+
-            '{:3d}  {:3d}  '  # RPA, IDM
-            '{}    '  # date for DMSP
-            '{:8.2f}    '  # UT for DMSP
-            '{:8.2f}    '  # mlt
-            '{:8.2f}    '  # mlt from IRI
-            '{:8.3f}    '  # UT for Point
-            '{}'  # date for Point
+            '#{:<5d}'         # n
+            '{:>4s}'          # sat_id
+            '{:8.2f}{:8.2f}'  # lat, long
+            '{:>8.2f}'        # alt
+            '{:8.1f}{:8.1f}'  # ti, te
+            '{:14.5e}'        # ne
+            '{:12.3e}'        # PO+
+            '{:6d}{:6d}'      # RPA, IDM
+            '{:>20s}'         # date for satellite
+            '{:>10.2f}'       # UT for satellite
+            '{:>10.2f}'       # mlt
+            '{:>10.2f}'       # mlt from IRI
+            '{:>10.3f}'       # UT for Point
+            '{:>20s}'         # date for Point
             )
 
         HEADER = HEADER_FORMAT.format(
@@ -64,12 +64,12 @@ class Formats:
             'ne',
             'po+',
             'rpa', 'idm',
-            '           date_sat',
-            '  ut_sat',
-            ' mlt_sat',
-            ' mlt_iri',
+            'date_sat',
+            'ut_sat',
+            'mlt_sat',
+            'mlt_iri',
             'ut_point',
-            '         date_point'
+            'date_point'
             )
 
 
@@ -79,7 +79,7 @@ class MainWnd(QMainWindow):
         super().__init__()
         uic.loadUi('./ui/MainWnd.ui', self)
 
-        self.program_name = 'Sat_Pass version 1.5'
+        self.program_name = 'Sat_Pass version 1.6'
         self.setWindowTitle(self.program_name)
 
         self.showMaximized()
@@ -332,30 +332,35 @@ class RunThread(QThread):
                                     date,
                                     self.configuration['point_lat'],
                                     self.configuration['point_long'], 3)
-                    try:
-                        times = [float(x) for x in iri_result]
-                    except ValueError:
-                        self.finished.emit(False)
-                        return
 
-                    delta = float('inf')
-                    k = 0
-                    for i, v in enumerate(times):
-                        if abs(v-mlt) < delta:
-                            k = i
-                            delta = abs(v-mlt)
-                    kt = k*0.025
+                    if iri_result[0]:
+                        try:
+                            times = [float(x) for x in iri_result]
+                        except ValueError:
+                            self.finished.emit(False)
+                            return
 
-                if self.isActive:
-                    date_out = datetime(date.year, date.month, date.day)
-                    date_out += timedelta(seconds=int(kt*3600.0))
+                        delta = float('inf')
+                        k = 0
+                        for i, v in enumerate(times):
+                            if abs(v-mlt) < delta:
+                                k = i
+                                delta = abs(v-mlt)
+                        kt = k*0.025
 
-                    delta = date_out - date
-                    if abs(delta.total_seconds()) > 12*60*60:
-                        if delta.total_seconds() > 0:
-                            date_out += timedelta(days=-1)
-                        else:
-                            date_out += timedelta(days=1)
+                        date_out = datetime(date.year, date.month, date.day)
+                        date_out += timedelta(seconds=int(kt*3600.0))
+
+                        delta = date_out - date
+                        if abs(delta.total_seconds()) > 12*60*60:
+                            if delta.total_seconds() > 0:
+                                date_out += timedelta(days=-1)
+                            else:
+                                date_out += timedelta(days=1)
+                        date_out = date_out.isoformat()
+                    else:
+                        kt = -1
+                        date_out = '{:>20s}'.format('-1')
 
                 if self.isActive:
 
@@ -368,12 +373,12 @@ class RunThread(QThread):
                         d['ne'],
                         d['po'],
                         d['rpa'], d['idm'],
-                        str(date.replace(microsecond=0)).replace(' ', 'T'),
+                        date.replace(microsecond=0).isoformat(),
                         date.hour + date.minute / 60.0 + date.second/3600.0,
                         d['mlt'],
                         mlt,
                         kt,
-                        str(date_out).replace(' ', 'T'))
+                        date_out)
 
                 if self.isActive:
                     self.log.emit(out_str)
