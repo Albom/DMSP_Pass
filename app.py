@@ -302,8 +302,8 @@ class RunThread(QThread):
             if self.isActive:
                 proxy_host = self.configuration['proxy_host']
                 proxy_port = self.configuration['proxy_port']
-                iri = IriModelAccess(
-                    {'proxy_host': proxy_host, 'proxy_port': proxy_port})
+                proxy = {'proxy_host': proxy_host, 'proxy_port': proxy_port} if proxy_host else None
+                iri = IriModelAccess(proxy)
 
             if self.isActive:
                 self.log.emit(Formats.HEADER)
@@ -732,7 +732,7 @@ class IriModelAccess:
                 result = requests.post(
                     self.url,
                     data=parameters,
-                    proxies=self.proxies,
+                    proxies=self.proxies if 'proxies' in vars(self) else None,
                     headers=headers)
             except requests.exceptions.RequestException:
                 if timeout > 60:
