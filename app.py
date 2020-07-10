@@ -79,7 +79,7 @@ class MainWnd(QMainWindow):
         super().__init__()
         uic.loadUi('./ui/MainWnd.ui', self)
 
-        self.program_name = 'Sat_Pass version 1.6'
+        self.program_name = 'Sat_Pass version 1.7'
         self.setWindowTitle(self.program_name)
 
         self.showMaximized()
@@ -168,6 +168,7 @@ class MainWnd(QMainWindow):
             self.saveConfigButton.setEnabled(False)
             self.chooseInputFileButton.setEnabled(False)
             self.electronTemperatureComboBox.setEnabled(False)
+            self.checkLocalTime.setEnabled(False)
             self.terminateButton.setEnabled(True)
             self.thread = RunThread(configuration)
             self.thread.finished.connect(self.finished)
@@ -182,6 +183,7 @@ class MainWnd(QMainWindow):
         self.saveConfigButton.setEnabled(True)
         self.chooseInputFileButton.setEnabled(True)
         self.electronTemperatureComboBox.setEnabled(True)
+        self.checkLocalTime.setEnabled(True)
 
     def choose_file(self):
         directory_name = str(QFileDialog.getExistingDirectory(self))
@@ -247,7 +249,7 @@ class MainWnd(QMainWindow):
     def show_about(self):
         about = (
             '\n\n'
-            '© 2019 Oleksandr Bogomaz'
+            '© 2019-2020 Oleksandr Bogomaz'
             '\n'
             'o.v.bogomaz1985@gmail.com')
 
@@ -309,58 +311,66 @@ class RunThread(QThread):
                 self.log.emit(Formats.HEADER)
 
             for n, d in enumerate(data):
+
                 mlt = None
                 date = d['date']
 
-                if self.isActive:
-                    try:
-                        print('Req. 1')
-                        mlt = float(
-                            iri.get_data(
-                                date, d['lat'], d['long'], 3, False)[0])
-                    except ValueError:
-                        self.finished.emit(False)
-                        return
+                if wnd.checkLocalTime.isChecked():
 
-                    if mlt is None:
-                        self.finished.emit(False)
-                        return
-
-                if self.isActive:
-                    print('Req. 2')
-                    iri_result = iri.get_data_cached(
-                                    date,
-                                    self.configuration['point_lat'],
-                                    self.configuration['point_long'], 3)
-
-                    if iri_result[0]:
+                    if self.isActive:
                         try:
-                            times = [float(x) for x in iri_result]
+                            print('Req. 1')
+                            mlt = float(
+                                iri.get_data(
+                                    date, d['lat'], d['long'], 3, False)[0])
                         except ValueError:
                             self.finished.emit(False)
                             return
 
-                        delta = float('inf')
-                        k = 0
-                        for i, v in enumerate(times):
-                            if abs(v-mlt) < delta:
-                                k = i
-                                delta = abs(v-mlt)
-                        kt = k*0.025
+                        if mlt is None:
+                            self.finished.emit(False)
+                            return
 
-                        date_out = datetime(date.year, date.month, date.day)
-                        date_out += timedelta(seconds=int(kt*3600.0))
+                    if self.isActive:
+                        print('Req. 2')
+                        iri_result = iri.get_data_cached(
+                                        date,
+                                        self.configuration['point_lat'],
+                                        self.configuration['point_long'], 3)
 
-                        delta = date_out - date
-                        if abs(delta.total_seconds()) > 12*60*60:
-                            if delta.total_seconds() > 0:
-                                date_out += timedelta(days=-1)
-                            else:
-                                date_out += timedelta(days=1)
-                        date_out = date_out.isoformat()
-                    else:
-                        kt = -1
-                        date_out = '{:>20s}'.format('-1')
+                        if iri_result[0]:
+                            try:
+                                times = [float(x) for x in iri_result]
+                            except ValueError:
+                                self.finished.emit(False)
+                                return
+
+                            delta = float('inf')
+                            k = 0
+                            for i, v in enumerate(times):
+                                if abs(v-mlt) < delta:
+                                    k = i
+                                    delta = abs(v-mlt)
+                            kt = k*0.025
+
+                            date_out = datetime(date.year, date.month, date.day)
+                            date_out += timedelta(seconds=int(kt*3600.0))
+
+                            delta = date_out - date
+                            if abs(delta.total_seconds()) > 12*60*60:
+                                if delta.total_seconds() > 0:
+                                    date_out += timedelta(days=-1)
+                                else:
+                                    date_out += timedelta(days=1)
+                            date_out = date_out.isoformat()
+                        else:
+                            kt = -1
+                            date_out = '{:>20s}'.format('-1')
+
+                else:
+                    mlt = -1
+                    kt = -1
+                    date_out = '{:>20s}'.format('-1')
 
                 if self.isActive:
 
