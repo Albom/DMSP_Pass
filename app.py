@@ -36,6 +36,7 @@ class Formats:
             '{:>10s}'         # mlt from IRI
             '{:>10s}'         # UT for Point
             '{:>20s}'         # date for Point
+            '{:>8s}'          # L-Shell
             )
 
         ROW_FORMAT = (
@@ -53,6 +54,7 @@ class Formats:
             '{:>10.2f}'       # mlt from IRI
             '{:>10.3f}'       # UT for Point
             '{:>20s}'         # date for Point
+            '{:>8.3f}'        # L-Shell
             )
 
         HEADER = HEADER_FORMAT.format(
@@ -69,7 +71,8 @@ class Formats:
             'mlt_sat',
             'mlt_iri',
             'ut_point',
-            'date_point'
+            'date_point',
+            'l_shell'
             )
 
 
@@ -90,6 +93,15 @@ class MainWnd(QMainWindow):
         self.chooseInputFileButton.clicked.connect(self.choose_file)
         self.saveConfigButton.clicked.connect(self.save_config_file)
         self.saveResultsButton.clicked.connect(self.save_results_file)
+
+        self.elements = [
+            self.aboutButton,
+            self.saveConfigButton,
+            self.chooseInputFileButton,
+            self.electronTemperatureComboBox,
+            self.checkLocalTime,
+            self.checkLShell,
+            ]
 
         font = QFont('Monospace')
         font.setStyleHint(QFont.TypeWriter)
@@ -163,12 +175,7 @@ class MainWnd(QMainWindow):
         configuration = self.read_configuration()
         if configuration is not None:
             self.logListWidget.clear()
-            self.runButton.setEnabled(False)
-            self.aboutButton.setEnabled(False)
-            self.saveConfigButton.setEnabled(False)
-            self.chooseInputFileButton.setEnabled(False)
-            self.electronTemperatureComboBox.setEnabled(False)
-            self.checkLocalTime.setEnabled(False)
+            [e.setEnabled(False) for e in self.elements]
             self.terminateButton.setEnabled(True)
             self.thread = RunThread(configuration)
             self.thread.finished.connect(self.finished)
@@ -178,12 +185,7 @@ class MainWnd(QMainWindow):
     def terminate(self):
         self.thread.terminate()
         self.terminateButton.setEnabled(False)
-        self.runButton.setEnabled(True)
-        self.aboutButton.setEnabled(True)
-        self.saveConfigButton.setEnabled(True)
-        self.chooseInputFileButton.setEnabled(True)
-        self.electronTemperatureComboBox.setEnabled(True)
-        self.checkLocalTime.setEnabled(True)
+        [e.setEnabled(True) for e in self.elements]
 
     def choose_file(self):
         directory_name = str(QFileDialog.getExistingDirectory(self))
@@ -306,6 +308,7 @@ class RunThread(QThread):
                 proxy_port = self.configuration['proxy_port']
                 proxy = {'proxy_host': proxy_host, 'proxy_port': proxy_port} if proxy_host else None
                 iri = IriModelAccess(proxy)
+                igrf = IgrfModelAccess(proxy)
 
             if self.isActive:
                 self.log.emit(Formats.HEADER)
@@ -372,6 +375,12 @@ class RunThread(QThread):
                     kt = -1
                     date_out = '{:>20s}'.format('-1')
 
+                if wnd.checkLShell.isChecked():
+                    if self.isActive:
+                        l_shell = float(
+                                igrf.get_data(
+                                    date.year, d['lat'], d['long'], d['alt'], 1)[0])
+
                 if self.isActive:
 
                     out_str = Formats.ROW_FORMAT.format(
@@ -388,7 +397,9 @@ class RunThread(QThread):
                         d['mlt'],
                         mlt,
                         kt,
-                        date_out)
+                        date_out,
+                        l_shell
+                        )
 
                 if self.isActive:
                     self.log.emit(out_str)
@@ -755,7 +766,7 @@ class IriModelAccess:
         r = try_request(3)
 
         try:
-            start_pos = r.text.index('     1') + 7
+            start_pos = r.text.index('        1') + 10
             end_pos = r.text.index('</pre>')
             lines = r.text[start_pos: end_pos].strip()
         except ValueError:
@@ -772,7 +783,81 @@ class IriModelAccess:
         return values
 
 
+class IgrfModelAccess:
+    def __init__(self, proxy=None):
+
+        self.proxies = None
+        if proxy is not None:
+            self.proxies = {
+                'https': '{}:{}'.format(
+                    proxy['proxy_host'],
+                    proxy['proxy_port'])
+                }
+
+        self.url = ('https://ccmc.gsfc.nasa.gov'
+                    '/cgi-bin/modelweb/models/vitmo_model.cgi')
+
+    def get_data(self, year, lat, lon, height, n=1):
+
+        parameters = {
+            'model': 'igrf',
+            'format': '0',  # 0 - list
+            'year': str(year),
+            'height': height,
+            'latitude': lat,
+            'longitude': lon,
+            'profile': '3',  # Height profile
+            'start': '{:.1f}'.format(height),
+            'stop': '{:.1f}'.format(height),
+            'step': '{:.1f}'.format(10.0),
+            'vars': ['12']  # L_value
+            }
+
+        headers = {
+            'Connection': 'close',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) '
+                          'AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/39.0.2171.95 Safari/537.36'
+            }
+
+        def try_request(timeout):
+            result = ''
+            sleep(timeout)
+            try:
+                result = requests.post(
+                    self.url,
+                    data=parameters,
+                    proxies=self.proxies,
+                    headers=headers)
+            except requests.exceptions.RequestException:
+                if timeout > 60:
+                    return None
+                timeout *= 2
+                print('Error. New request timeout: ' + str(timeout) + ' s')
+                result = try_request(timeout)
+            return result
+
+        r = try_request(1)
+
+        try:
+            start_pos = r.text.index('        1') + 9
+            end_pos = r.text.index('</pre><HR>')
+            lines = r.text[start_pos: end_pos].strip()
+        except ValueError:
+            if n > 60:
+                return None
+            else:
+                n *= 2
+                print('Bad data. Retrying after ' + str(n) + ' s')
+                sleep(n)
+                return self.get_data(year, lat, height, n)
+
+        values = [[float(x) for x in line.split()] for line in lines.split('\n')]
+        return values[0]
+
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     wnd = MainWnd()
     sys.exit(app.exec_())
+
