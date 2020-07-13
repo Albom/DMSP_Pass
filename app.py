@@ -317,6 +317,7 @@ class RunThread(QThread):
 
                 mlt = None
                 date = d['date']
+                l_shell = -1
 
                 if wnd.checkLocalTime.isChecked():
 
@@ -860,4 +861,3 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     wnd = MainWnd()
     sys.exit(app.exec_())
-
