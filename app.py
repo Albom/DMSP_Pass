@@ -95,12 +95,16 @@ class MainWnd(QMainWindow):
         self.saveResultsButton.clicked.connect(self.save_results_file)
 
         self.elements = [
+            self.runButton,
             self.aboutButton,
             self.saveConfigButton,
             self.chooseInputFileButton,
             self.electronTemperatureComboBox,
+            self.label_10,
             self.checkLocalTime,
             self.checkLShell,
+            self.radioIgrf,
+            self.radioCgm
             ]
 
         font = QFont('Monospace')
@@ -234,6 +238,8 @@ class MainWnd(QMainWindow):
                 result['proxy_port'] = int(result['proxy_port'])
             except ValueError:
                 success = False
+
+        result['cgm'] = self.radioCgm.isChecked()
 
         if not success:
             self.show_error('Input parameters are incorrect.')
@@ -378,9 +384,10 @@ class RunThread(QThread):
 
                 if wnd.checkLShell.isChecked():
                     if self.isActive:
+                        cgm = self.configuration['cgm']
                         l_shell = float(
                                 igrf.get_data(
-                                    date.year, d['lat'], d['long'], d['alt'], 1)[0])
+                                    date.year, d['lat'], d['long'], d['alt'], 1, cgm=cgm)[0])
 
                 if self.isActive:
 
@@ -795,23 +802,26 @@ class IgrfModelAccess:
                     proxy['proxy_port'])
                 }
 
-        self.url = ('https://ccmc.gsfc.nasa.gov'
-                    '/cgi-bin/modelweb/models/vitmo_model.cgi')
+        self.url_cgm = ('https://omniweb.gsfc.nasa.gov'
+                        '/cgi/vitmo/cgm_model.cgi')
 
-    def get_data(self, year, lat, lon, height, n=1):
+        self.url_igrf = ('https://ccmc.gsfc.nasa.gov'
+                         '/cgi-bin/modelweb/models/vitmo_model.cgi')
+
+    def get_data(self, year, lat, lon, height, n=1, cgm=False):
 
         parameters = {
-            'model': 'igrf',
+            'model': 'cgm' if cgm else 'igrf',
             'format': '0',  # 0 - list
             'year': str(year),
             'height': height,
             'latitude': lat,
             'longitude': lon,
-            'profile': '3',  # Height profile
+            'profile': '1' if cgm else '3',  # Height profile
             'start': '{:.1f}'.format(height),
             'stop': '{:.1f}'.format(height),
             'step': '{:.1f}'.format(10.0),
-            'vars': ['12']  # L_value
+            'vars': ['42'] if cgm else ['12']  # L_value
             }
 
         headers = {
@@ -826,7 +836,7 @@ class IgrfModelAccess:
             sleep(timeout)
             try:
                 result = requests.post(
-                    self.url,
+                    self.url_cgm if cgm else self.url_igrf,
                     data=parameters,
                     proxies=self.proxies,
                     headers=headers)
@@ -839,10 +849,9 @@ class IgrfModelAccess:
             return result
 
         r = try_request(1)
-
         try:
-            start_pos = r.text.index('        1') + 9
-            end_pos = r.text.index('</pre><HR>')
+            start_pos = (r.text.index('      1') + 7) if cgm else (r.text.index('        1') + 9)
+            end_pos = r.text.index('<hr></pre><HR>') if cgm else r.text.index('</pre><HR>')
             lines = r.text[start_pos: end_pos].strip()
         except ValueError:
             if n > 60:
