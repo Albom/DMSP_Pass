@@ -1,3 +1,4 @@
+from filelist import FileList
 import sys
 from os import path
 from math import modf
@@ -16,64 +17,63 @@ import warnings
 with warnings.catch_warnings():
     warnings.filterwarnings('ignore', category=FutureWarning)
     import h5py
-from filelist import FileList
 
 
 class Formats:
 
-        HEADER_FORMAT = (
-            '{:<6s}'          # n
-            '{:>4s}'          # sat_id
-            '{:>8s}{:>8s}'    # lat, long
-            '{:>8s}'          # alt
-            '{:>8s}{:>8s}'    # ti, te
-            '{:>14s}'         # ne
-            '{:>12s}'         # PO+
-            '{:>6s}{:>6s}'    # RPA, IDM
-            '{:>20s}'         # date for satellite
-            '{:>10s}'         # ut for satellite
-            '{:>10s}'         # mlt
-            '{:>10s}'         # mlt from IRI
-            '{:>10s}'         # UT for Point
-            '{:>20s}'         # date for Point
-            '{:>8s}'          # L-Shell
-            )
+    HEADER_FORMAT = (
+        '{:<6s}'          # n
+        '{:>4s}'          # sat_id
+        '{:>8s}{:>8s}'    # lat, long
+        '{:>8s}'          # alt
+        '{:>8s}{:>8s}'    # ti, te
+        '{:>14s}'         # ne
+        '{:>12s}'         # PO+
+        '{:>6s}{:>6s}'    # RPA, IDM
+        '{:>20s}'         # date for satellite
+        '{:>10s}'         # ut for satellite
+        '{:>10s}'         # mlt
+        '{:>10s}'         # mlt from IRI
+        '{:>10s}'         # UT for Point
+        '{:>20s}'         # date for Point
+        '{:>8s}'          # L-Shell
+    )
 
-        ROW_FORMAT = (
-            '#{:<5d}'         # n
-            '{:>4s}'          # sat_id
-            '{:8.2f}{:8.2f}'  # lat, long
-            '{:>8.2f}'        # alt
-            '{:8.1f}{:8.1f}'  # ti, te
-            '{:14.5e}'        # ne
-            '{:12.3e}'        # PO+
-            '{:6d}{:6d}'      # RPA, IDM
-            '{:>20s}'         # date for satellite
-            '{:>10.2f}'       # UT for satellite
-            '{:>10.2f}'       # mlt
-            '{:>10.2f}'       # mlt from IRI
-            '{:>10.3f}'       # UT for Point
-            '{:>20s}'         # date for Point
-            '{:>8.3f}'        # L-Shell
-            )
+    ROW_FORMAT = (
+        '#{:<5d}'         # n
+        '{:>4s}'          # sat_id
+        '{:8.2f}{:8.2f}'  # lat, long
+        '{:>8.2f}'        # alt
+        '{:8.1f}{:8.1f}'  # ti, te
+        '{:14.5e}'        # ne
+        '{:12.3e}'        # PO+
+        '{:6d}{:6d}'      # RPA, IDM
+        '{:>20s}'         # date for satellite
+        '{:>10.2f}'       # UT for satellite
+        '{:>10.2f}'       # mlt
+        '{:>10.2f}'       # mlt from IRI
+        '{:>10.3f}'       # UT for Point
+        '{:>20s}'         # date for Point
+        '{:>8.3f}'        # L-Shell
+    )
 
-        HEADER = HEADER_FORMAT.format(
-            'i',
-            'id',
-            'lat', 'lon',
-            'alt',
-            'ti', 'te',
-            'ne',
-            'po+',
-            'rpa', 'idm',
-            'date_sat',
-            'ut_sat',
-            'mlt_sat',
-            'mlt_iri',
-            'ut_point',
-            'date_point',
-            'l_shell'
-            )
+    HEADER = HEADER_FORMAT.format(
+        'i',
+        'id',
+        'lat', 'lon',
+        'alt',
+        'ti', 'te',
+        'ne',
+        'po+',
+        'rpa', 'idm',
+        'date_sat',
+        'ut_sat',
+        'mlt_sat',
+        'mlt_iri',
+        'ut_point',
+        'date_point',
+        'l_shell'
+    )
 
 
 class MainWnd(QMainWindow):
@@ -94,6 +94,8 @@ class MainWnd(QMainWindow):
         self.saveConfigButton.clicked.connect(self.save_config_file)
         self.saveResultsButton.clicked.connect(self.save_results_file)
 
+        self.shellFilterCheckBox.stateChanged.connect(self.toggle_l_param)
+
         self.elements = [
             self.runButton,
             self.aboutButton,
@@ -104,8 +106,11 @@ class MainWnd(QMainWindow):
             self.checkLocalTime,
             self.checkLShell,
             self.radioIgrf,
-            self.radioCgm
-            ]
+            self.radioCgm,
+            self.shellFilterCheckBox,
+            self.shellEdit,
+            self.dShellEdit
+        ]
 
         font = QFont('Monospace')
         font.setStyleHint(QFont.TypeWriter)
@@ -125,6 +130,10 @@ class MainWnd(QMainWindow):
             'dlong': self.dLongEdit}
 
         self.load_config_file()
+
+    def toggle_l_param(self):
+        [x.setEnabled(self.shellFilterCheckBox.isChecked())
+         for x in [self.shellEdit, self.dShellEdit]]
 
     def save_results_file(self):
         filename, _ = QFileDialog.getSaveFileName()
@@ -228,6 +237,11 @@ class MainWnd(QMainWindow):
                 result['point_long'] -= 360.0
             if result['dmsp_dlat'] < 0 or result['dmsp_dlong'] < 0:
                 success = False
+            if self.shellFilterCheckBox.isChecked():
+                result['l_shell_set'] = float(self.shellEdit.text())
+                result['dl_shell_set'] = float(self.dShellEdit.text())
+                if result['l_shell_set'] < 0 or result['dl_shell_set'] < 0:
+                    success = False
         except ValueError:
             success = False
 
@@ -312,14 +326,16 @@ class RunThread(QThread):
             if self.isActive:
                 proxy_host = self.configuration['proxy_host']
                 proxy_port = self.configuration['proxy_port']
-                proxy = {'proxy_host': proxy_host, 'proxy_port': proxy_port} if proxy_host else None
+                proxy = {'proxy_host': proxy_host,
+                         'proxy_port': proxy_port} if proxy_host else None
                 iri = IriModelAccess(proxy)
                 igrf = IgrfModelAccess(proxy)
 
             if self.isActive:
                 self.log.emit(Formats.HEADER)
 
-            for n, d in enumerate(data):
+            n = 0
+            for d in data:
 
                 mlt = None
                 date = d['date']
@@ -344,9 +360,9 @@ class RunThread(QThread):
                     if self.isActive:
                         print('Req. 2')
                         iri_result = iri.get_data_cached(
-                                        date,
-                                        self.configuration['point_lat'],
-                                        self.configuration['point_long'], 3)
+                            date,
+                            self.configuration['point_lat'],
+                            self.configuration['point_long'], 3)
 
                         if iri_result[0]:
                             try:
@@ -363,7 +379,8 @@ class RunThread(QThread):
                                     delta = abs(v-mlt)
                             kt = k*0.025
 
-                            date_out = datetime(date.year, date.month, date.day)
+                            date_out = datetime(
+                                date.year, date.month, date.day)
                             date_out += timedelta(seconds=int(kt*3600.0))
 
                             delta = date_out - date
@@ -386,8 +403,8 @@ class RunThread(QThread):
                     if self.isActive:
                         cgm = self.configuration['cgm']
                         l_shell = float(
-                                igrf.get_data(
-                                    date.year, d['lat'], d['long'], d['alt'], 1, cgm=cgm)[0])
+                            igrf.get_data(
+                                date.year, d['lat'], d['long'], d['alt'], 1, cgm=cgm)[0])
 
                 if self.isActive:
 
@@ -407,10 +424,19 @@ class RunThread(QThread):
                         kt,
                         date_out,
                         l_shell
-                        )
+                    )
 
                 if self.isActive:
-                    self.log.emit(out_str)
+                    needFiltering = wnd.shellFilterCheckBox.isChecked()
+                    if needFiltering and l_shell > 0:
+                        l_shell_set = self.configuration['l_shell_set']
+                        dl_shell_set = self.configuration['dl_shell_set']
+                        if abs(l_shell_set - l_shell) < dl_shell_set:
+                            self.log.emit(out_str)
+                            n += 1
+                    elif not needFiltering or l_shell < 0:
+                        self.log.emit(out_str)
+                        n += 1
 
         self.finished.emit(True)
 
@@ -446,10 +472,14 @@ class RunThread(QThread):
 
             sat_ids = list(main_table[:, 'sat_id']) if 'sat_id' in columns else (
                 [15]*nrows if path.basename(filename).startswith('dms_ut_') else [-1]*nrows)
-            mlts = list(main_table[:, 'mlt']) if 'mlt' in columns else [-1]*nrows
-            pos = list(main_table[:, 'po+']) if 'po+' in columns else [-1]*nrows
-            rpas = list(main_table[:, 'rpa_flag_ut']) if 'rpa_flag_ut' in columns else [-1]*nrows
-            idms = list(main_table[:, 'idm_flag_ut']) if 'idm_flag_ut' in columns else [-1]*nrows
+            mlts = list(main_table[:, 'mlt']
+                        ) if 'mlt' in columns else [-1]*nrows
+            pos = list(main_table[:, 'po+']
+                       ) if 'po+' in columns else [-1]*nrows
+            rpas = list(main_table[:, 'rpa_flag_ut']
+                        ) if 'rpa_flag_ut' in columns else [-1]*nrows
+            idms = list(main_table[:, 'idm_flag_ut']
+                        ) if 'idm_flag_ut' in columns else [-1]*nrows
 
             for x in [tis, tes, nes, sat_ids, mlts, pos, rpas, idms]:
                 for i, e in enumerate(x):
@@ -556,7 +586,7 @@ class RunThread(QThread):
                 try:
                     result = float(
                         values[pos] if values[pos] != 'nan' else -1
-                        ) if pos > 0 else -1
+                    ) if pos > 0 else -1
                 except ValueError:
                     result = -1
                 return result
@@ -572,8 +602,8 @@ class RunThread(QThread):
 
             data.append({'date': date,
                          'sat_id': str(int(
-                            values[sat_id_pos]
-                            ) if sat_id_pos > 0 else (15 if path.basename(filename).startswith('dms_ut_') else -1)),
+                             values[sat_id_pos]
+                         ) if sat_id_pos > 0 else (15 if path.basename(filename).startswith('dms_ut_') else -1)),
                          'ti': ti,
                          'te': te,
                          'ne': ne,
@@ -612,19 +642,19 @@ class RunThread(QThread):
 
         nrows = len(dates)
         for i in range(nrows):
-                data.append({'date': dates[i],
-                             'ti': -1,
-                             'te': temperatures[i] if temperatures is not None else -1,
-                             'ne': densities[i] if densities is not None else -1,
-                             'lat': latitudes[i],
-                             'long': longitudes[i],
-                             'alt': heights[i],
-                             'sat_id': sat_id,
-                             'mlt': -1,
-                             'po': -1,
-                             'rpa': -1,
-                             'idm': -1,
-                             })
+            data.append({'date': dates[i],
+                         'ti': -1,
+                         'te': temperatures[i] if temperatures is not None else -1,
+                         'ne': densities[i] if densities is not None else -1,
+                         'lat': latitudes[i],
+                         'long': longitudes[i],
+                         'alt': heights[i],
+                         'sat_id': sat_id,
+                         'mlt': -1,
+                         'po': -1,
+                         'rpa': -1,
+                         'idm': -1,
+                         })
         return data
 
     def read_input_file(self, filename):
@@ -670,7 +700,7 @@ class IriModelAccess:
                 'https': '{}:{}'.format(
                     proxy['proxy_host'],
                     proxy['proxy_port'])
-                }
+            }
 
         self.url = ('https://ccmc.gsfc.nasa.gov'
                     '/cgi-bin/modelweb/models/vitmo_model.cgi')
@@ -745,14 +775,14 @@ class IriModelAccess:
             'stop': stop,
             'step': step,
             'vars': ['16']  # MLT
-            }
+        }
 
         headers = {
             'Connection': 'close',
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) '
                           'AppleWebKit/537.36 (KHTML, like Gecko) '
                           'Chrome/39.0.2171.95 Safari/537.36'
-            }
+        }
 
         def try_request(timeout):
             result = ''
@@ -771,10 +801,10 @@ class IriModelAccess:
                 result = try_request(timeout)
             return result
 
-        r = try_request(3)
-
+        r = try_request(1)
+        #print(r.text, file=open('out.html', 'w'))
         try:
-            start_pos = r.text.index('        1') + 10
+            start_pos = r.text.index('     1') + 7
             end_pos = r.text.index('</pre>')
             lines = r.text[start_pos: end_pos].strip()
         except ValueError:
@@ -800,7 +830,7 @@ class IgrfModelAccess:
                 'https': '{}:{}'.format(
                     proxy['proxy_host'],
                     proxy['proxy_port'])
-                }
+            }
 
         self.url_cgm = ('https://omniweb.gsfc.nasa.gov'
                         '/cgi/vitmo/cgm_model.cgi')
@@ -822,14 +852,14 @@ class IgrfModelAccess:
             'stop': '{:.1f}'.format(height),
             'step': '{:.1f}'.format(10.0),
             'vars': ['42'] if cgm else ['12']  # L_value
-            }
+        }
 
         headers = {
             'Connection': 'close',
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) '
                           'AppleWebKit/537.36 (KHTML, like Gecko) '
                           'Chrome/39.0.2171.95 Safari/537.36'
-            }
+        }
 
         def try_request(timeout):
             result = ''
@@ -850,8 +880,10 @@ class IgrfModelAccess:
 
         r = try_request(1)
         try:
-            start_pos = (r.text.index('      1') + 7) if cgm else (r.text.index('        1') + 9)
-            end_pos = r.text.index('<hr></pre><HR>') if cgm else r.text.index('</pre><HR>')
+            start_pos = (r.text.index('      1') +
+                         7) if cgm else (r.text.index('        1') + 9)
+            end_pos = r.text.index(
+                '<hr></pre><HR>') if cgm else r.text.index('</pre><HR>')
             lines = r.text[start_pos: end_pos].strip()
         except ValueError:
             if n > 60:
@@ -862,7 +894,8 @@ class IgrfModelAccess:
                 sleep(n)
                 return self.get_data(year, lat, height, n)
 
-        values = [[float(x) for x in line.split()] for line in lines.split('\n')]
+        values = [[float(x) for x in line.split()]
+                  for line in lines.split('\n')]
         return values[0]
 
 
