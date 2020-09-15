@@ -667,26 +667,36 @@ class RunThread(QThread):
 
     def filter(self, data, configuration):
 
-        dmsp_lat = configuration['dmsp_lat']
-        dmsp_long = configuration['dmsp_long']
-        dmsp_dlat = configuration['dmsp_dlat']
-        dmsp_dlong = configuration['dmsp_dlong']
+        sat_lat = configuration['dmsp_lat']
+        sat_lon = configuration['dmsp_long']
+        sat_dlat = configuration['dmsp_dlat']
+        sat_dlon = configuration['dmsp_dlong']
 
-        lat_m = dmsp_lat - dmsp_dlat
+        lat_m = sat_lat - sat_dlat
         lat_m = -90 if lat_m < -90 else lat_m
-        lat_p = dmsp_lat + dmsp_dlat
+        lat_p = sat_lat + sat_dlat
         lat_p = 90 if lat_m > 90 else lat_p
 
-        long_m = dmsp_long - dmsp_dlong
-        long_m += 360 if long_m < -180 else 0
-        long_p = dmsp_long + dmsp_dlong
-        long_p -= 360 if long_m > 180 else 0
+        lon_m = sat_lon - sat_dlon
+        lon_m += 360 if lon_m < -180 else 0
+
+        lon_p = sat_lon + sat_dlon
+        lon_p -= 360 if lon_p > 180 else 0
+
+        if lon_p-lon_m == 2*sat_dlon:
+            lon_ranges = [(lon_m, lon_p)]
+        elif sat_dlon == 180:
+            lon_ranges = [(-180, 180)]
+        else:
+            lon_ranges = [(-180, lon_p), (lon_m, 180)]
 
         result = []
         for d in data:
             lat_check = d['lat'] >= lat_m and d['lat'] <= lat_p
-            long_check = d['long'] >= long_m and d['long'] <= long_p
-            if lat_check and long_check:
+            lon_check = d['long'] >= lon_ranges[0][0] and d['long'] <= lon_ranges[0][1] if len(lon_ranges) == 1 else \
+                d['long'] >= lon_ranges[0][0] and d['long'] <= lon_ranges[0][1] or \
+                d['long'] >= lon_ranges[1][0] and d['long'] <= lon_ranges[1][1]
+            if lat_check and lon_check:
                 result.append(d)
 
         return result
