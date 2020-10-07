@@ -29,6 +29,7 @@ class Formats:
         '{:>8s}{:>8s}'    # ti, te
         '{:>14s}'         # ne
         '{:>12s}'         # PO+
+        '{:>12s}{:>12s}'  # PH+, PHe+
         '{:>6s}{:>6s}'    # RPA, IDM
         '{:>20s}'         # date for satellite
         '{:>10s}'         # ut for satellite
@@ -40,21 +41,22 @@ class Formats:
     )
 
     ROW_FORMAT = (
-        '#{:<5d}'         # n
-        '{:>4s}'          # sat_id
-        '{:8.2f}{:8.2f}'  # lat, long
-        '{:>8.2f}'        # alt
-        '{:8.1f}{:8.1f}'  # ti, te
-        '{:14.5e}'        # ne
-        '{:12.3e}'        # PO+
-        '{:6d}{:6d}'      # RPA, IDM
-        '{:>20s}'         # date for satellite
-        '{:>10.2f}'       # UT for satellite
-        '{:>10.2f}'       # mlt
-        '{:>10.2f}'       # mlt from IRI
-        '{:>10.3f}'       # UT for Point
-        '{:>20s}'         # date for Point
-        '{:>8.3f}'        # L-Shell
+        '#{:<5d}'           # n
+        '{:>4s}'            # sat_id
+        '{:8.2f}{:8.2f}'    # lat, long
+        '{:>8.2f}'          # alt
+        '{:8.1f}{:8.1f}'    # ti, te
+        '{:14.5e}'          # ne
+        '{:12.3e}'          # PO+
+        '{:12.3e}{:12.3e}'  # PH+, PHe+
+        '{:6d}{:6d}'        # RPA, IDM
+        '{:>20s}'           # date for satellite
+        '{:>10.2f}'         # UT for satellite
+        '{:>10.2f}'         # mlt
+        '{:>10.2f}'         # mlt from IRI
+        '{:>10.3f}'         # UT for Point
+        '{:>20s}'           # date for Point
+        '{:>8.3f}'          # L-Shell
     )
 
     HEADER = HEADER_FORMAT.format(
@@ -65,6 +67,7 @@ class Formats:
         'ti', 'te',
         'ne',
         'po+',
+        'ph+', 'phe+',
         'rpa', 'idm',
         'date_sat',
         'ut_sat',
@@ -416,6 +419,7 @@ class RunThread(QThread):
                         d['ti'], d['te'],
                         d['ne'],
                         d['po'],
+                        d['ph'], d['phe'],
                         d['rpa'], d['idm'],
                         date.replace(microsecond=0).isoformat(),
                         date.hour + date.minute / 60.0 + date.second/3600.0,
@@ -476,12 +480,16 @@ class RunThread(QThread):
                         ) if 'mlt' in columns else [-1]*nrows
             pos = list(main_table[:, 'po+']
                        ) if 'po+' in columns else [-1]*nrows
+            phs = list(main_table[:, 'ph+']
+                       ) if 'ph+' in columns else [-1]*nrows
+            phes = list(main_table[:, 'phe+']
+                        ) if 'phe+' in columns else [-1]*nrows
             rpas = list(main_table[:, 'rpa_flag_ut']
                         ) if 'rpa_flag_ut' in columns else [-1]*nrows
             idms = list(main_table[:, 'idm_flag_ut']
                         ) if 'idm_flag_ut' in columns else [-1]*nrows
 
-            for x in [tis, tes, nes, sat_ids, mlts, pos, rpas, idms]:
+            for x in [tis, tes, nes, sat_ids, mlts, pos, phs, phes, rpas, idms]:
                 for i, e in enumerate(x):
                     if str(e) == 'nan':
                         x[i] = -1
@@ -504,7 +512,9 @@ class RunThread(QThread):
                              'alt': alts[i],
                              'sat_id': str(sat_ids[i]),
                              'mlt': mlts[i],
-                             'po': pos[i],
+                             'po': float(pos[i]),
+                             'ph': float(phs[i]),
+                             'phe': float(phes[i]),
                              'rpa': rpas[i],
                              'idm': idms[i],
                              })
@@ -555,6 +565,8 @@ class RunThread(QThread):
             ne_pos = pos_normalize('NI')
         alt_pos = pos_normalize('GDALT')
         po_pos = pos_normalize('PO+')
+        ph_pos = pos_normalize('PH+')
+        phe_pos = pos_normalize('PHE+')
         rpa_pos = pos_normalize('RPA_FLAG_')
         idm_pos = pos_normalize('IDM_FLAG_')
 
@@ -574,6 +586,8 @@ class RunThread(QThread):
                     ne_pos -= 1
                     alt_pos -= 1
                     po_pos -= 1
+                    ph_pos -= 1
+                    phe_pos -= 1
                     rpa_pos -= 1
                     idm_pos -= 1
                 is_corrected = True
@@ -597,6 +611,8 @@ class RunThread(QThread):
             mlt = param_normalize(mlt_pos)
             alt = param_normalize(alt_pos)
             po = param_normalize(po_pos)
+            ph = param_normalize(ph_pos)
+            phe = param_normalize(phe_pos)
             rpa = param_normalize(rpa_pos)
             idm = param_normalize(idm_pos)
 
@@ -609,6 +625,8 @@ class RunThread(QThread):
                          'ne': ne,
                          'mlt': mlt,
                          'po': po,
+                         'ph': ph,
+                         'phe': phe,
                          'rpa': int(rpa),
                          'idm': int(idm),
                          'lat': float(values[lat_pos]),
@@ -652,6 +670,8 @@ class RunThread(QThread):
                          'sat_id': sat_id,
                          'mlt': -1,
                          'po': -1,
+                         'ph': -1,
+                         'phe': -1,
                          'rpa': -1,
                          'idm': -1,
                          })
