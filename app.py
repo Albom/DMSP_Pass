@@ -455,6 +455,7 @@ class RunThread(QThread):
             main_table = file['Data/Table Layout']
             columns = main_table.dtype.fields.keys()
             nrows = len(main_table)
+            #print(filename, columns, nrows)
 
             years = main_table[:, 'year']
             months = main_table[:, 'month']
@@ -475,7 +476,7 @@ class RunThread(QThread):
                 list(main_table[:, 'ni']) if 'ni' in columns else [-1]*nrows)
 
             sat_ids = list(main_table[:, 'sat_id']) if 'sat_id' in columns else (
-                [15]*nrows if path.basename(filename).startswith('dms_ut_') else [-1]*nrows)
+                [path.basename(filename)[16:18]]*nrows if path.basename(filename).startswith('dms_ut_') else [-1]*nrows)
             mlts = list(main_table[:, 'mlt']
                         ) if 'mlt' in columns else [-1]*nrows
             pos = list(main_table[:, 'po+']
@@ -619,7 +620,7 @@ class RunThread(QThread):
             data.append({'date': date,
                          'sat_id': str(int(
                              values[sat_id_pos]
-                         ) if sat_id_pos > 0 else (15 if path.basename(filename).startswith('dms_ut_') else -1)),
+                         ) if sat_id_pos > 0 else (path.basename(filename)[16:18] if path.basename(filename).startswith('dms_ut_') else -1)),
                          'ti': ti,
                          'te': te,
                          'ne': ne,
